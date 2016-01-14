@@ -3,5 +3,5 @@ name:
    first: Elliot
    last: Schumacher
 email: eschumac@cs.cmu.edu
-leaderboard: Diss Friar
+leaderboard: DissFriar
 languages: [eng,fre,spa]
