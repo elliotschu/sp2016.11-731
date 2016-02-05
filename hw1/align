@@ -5,7 +5,7 @@ from collections import defaultdict
 from _collections import defaultdict
 
 
-
+'''
 def rawCounts(bitext):
 	f_count = defaultdict(int)
 	e_count = defaultdict(int)
@@ -21,9 +21,16 @@ def rawCounts(bitext):
 		if n % 500 == 0:
 			sys.stderr.write(".")
 	return f_count, e_count, fe_count
+'''
 
-def initialize(bitext, f_count):
+def initialize(bitext):
 	probs = defaultdict(float)
+	f_count = defaultdict(int)
+
+	
+	for (n, (f, e)) in enumerate(bitext):
+		for f_i in set(f):
+			f_count[f_i] += 1
 
 	#Initialize probabilites for EM
 	for (n, (f, e)) in enumerate(bitext):
@@ -90,8 +97,8 @@ def align(opts):
 	sys.stderr.write("Training with IBM-1...")
 	bitext = [[sentence.strip().split() for sentence in pair.split(' ||| ')] for pair in open(opts.bitext)][:opts.num_sents]
 	
-	f_count, _, _ = rawCounts(bitext)
-	probs = initialize(bitext, f_count)
+	#f_count, _, _ = rawCounts(bitext)
+	probs = initialize(bitext)
 
 	#Run EM
 	probs = runEM(bitext, probs)
