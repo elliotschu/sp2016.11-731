@@ -42,7 +42,7 @@ def initialize(bitext):
 	return probs
 
 def runEM(bitext, probs):
-	EMIterations = 10
+	EMIterations = 5
 
 	for i in range (EMIterations):
 		sys.stderr.write("Beginning EM iteration %i\n" % (i))
@@ -71,19 +71,31 @@ def runEM(bitext, probs):
 
 def getAlignments(probs, bitext):
 	alignments = []
-	for (n, (f, e)) in enumerate(bitext):
+	for (_, (f, e)) in enumerate(bitext):
 		sentAlign = []
 
-		for e_i in e:
+		for eindex in range(len(e)):#e_i in e:
+			e_i = e[eindex]
 			maxScore = 0
-			bestPos = 0
+			bestPos = set()
 			
 			for findex in range(0,len(f)):
 				if (probs[f[findex], e_i]  > maxScore):
 					maxScore = probs[f[findex], e_i]
-					bestPos = findex
-				
-			sentAlign.append(bestPos)
+					bestPos.clear()
+					bestPos.add(findex)
+				if (probs[f[findex], e_i]  == maxScore):
+					bestPos.add(findex)
+			if (len(bestPos) == 1):
+				sentAlign.append(bestPos.pop())
+			else:
+				closestPos = 0
+				closestDist = len(e)
+				for pos in bestPos:
+					if (abs(pos - eindex) < closestDist):
+						closestDist = abs(pos - eindex)
+						closestPos = pos
+				sentAlign.append(closestPos)
 		alignments.append(sentAlign)
 	return alignments
 
