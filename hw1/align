@@ -42,7 +42,7 @@ def initialize(bitext):
 	return probs
 
 def runEM(bitext, probs):
-	EMIterations = 5
+	EMIterations = 10
 
 	for i in range (EMIterations):
 		sys.stderr.write("Beginning EM iteration %i\n" % (i))
