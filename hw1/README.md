@@ -18,4 +18,6 @@ The `data/` directory contains a fragment of the German/English Europarl corpus.
 HOMEWORK ENTRY:
 I did implemented IBM Model 1 for this assignment.  It can be run using the same method as described in the original assignment.
 
-In addition to Model 1, I improved several aspects of it.  For example, I broke ties in alignment scores by picking the alignment that resulted in the shortest distance.
+In addition to Model 1, I changed the method for breaking ties in alignment choices.  If there is a tie, it picks the option that has the smallest distance between the two.
+
+Also, I tried implementing a symmetric model for alignment (as seen in the file align7), but it did not perform as well as the original version I wrote.
