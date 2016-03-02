@@ -1,8 +1,194 @@
-#!/usr/bin/env python
+#@PydevCodeAnalysisIgnore
+
 import argparse # optparse is deprecated
 from itertools import islice # slicing for iterators
+from scipy import stats
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction import DictVectorizer
+import numpy as np
+from nltk.tokenize import word_tokenize
+from nltk.util import ngrams
+from nltk.corpus import stopwords
+from nltk import pos_tag
+import sys
+from sklearn import svm
+
  
-# DRY
+class LogRegModel:
+    def __init__(self):
+      self.model = svm.SVC()
+      self.vec = DictVectorizer()
+      self.allFeatures = []
+      self.allCorrect = []
+      stopWordList = [w.decode('utf-8') for w in stopwords.words('english')]
+      self.stopWordSet = set(stopWordList)
+      
+    def meteorScore(self, hyp, ref):
+        m = sum([1.0 for w in hyp if w in ref])
+        try:
+            precision = m / len(hyp)
+            recall = m / len(ref)
+            fmean = (10.0*precision*recall) / (7.0*recall + 3.0 * precision)
+            #fmean = stats.hmean([precision, recall])
+            return fmean
+        except:
+            return 0
+
+    def posFeatures(self, s):
+        ngramList = []
+        posS = [t for (w,t ) in pos_tag(s[0])]
+        for n in range (1,5):
+            ngramList.append([ ' '.join(grams).lower() for grams in ngrams(posS, n)])
+        print(ngramList)
+        return ngramList
+            
+    def extract_features(self, h1, h2, ref):
+      featureSet = {}
+      precision1 = 0
+      recall1 = 0
+#       total_p1 = 0
+#       total_r1 = 0
+      precision2 = 0
+      recall2 = 0
+#       total_p2 = 0
+#       total_r2 = 0
+      ngram_prec1 = 0
+      ngram_prec2 = 0
+      
+      pos_h1 = self.posFeatures(h1)
+      pos_h2 = self.posFeatures(h2)
+      pos_ref = self.posFeatures(ref)
+      
+      for n in range(0,3):
+        tp1 = sum([1.0 for w in h1[n] if w in  ref[n]])
+        tp2 = sum([1.0 for w in h2[n] if w in  ref[n]])        
+
+        try:
+          ngram_prec1 += float(tp1)/float(len(h1[n]))
+        except:
+          ngram_prec1 += 0.0
+        try:
+          ngram_prec2 += float(tp2)/float(len(h2[n]))
+        except:
+          ngram_prec2 += 0.0 
+        try:
+          featureSet[str(n)+"-precision-h1"] = float(tp1)/float(len(h1[n]))
+        except:
+           featureSet[str(n)+"-precision-h1"] = 0
+        try:
+          featureSet[str(n)+"-precision-h2"] = float(tp2)/float(len(h2[n]))
+        except:
+          featureSet[str(n)+"-precision-h2"] = 0
+        try:
+          featureSet[str(n)+"-recall-h1"] = float(tp1)/float(len(ref[n]))
+        except:
+          featureSet[str(n)+"-recall-h1"] = 0 
+        try:
+          featureSet[str(n)+"-recall-h2"] = float(tp2)/float(len(ref[n]))
+        except:
+          featureSet[str(n)+"-recall-h2"] = 0
+        try:
+          featureSet[str(n)+"-harmonic mean-h1"] = stats.hmean([float(tp1)/float(len(h1[n])), float(tp1)/float(len(ref[n]))])
+        except:
+          featureSet[str(n)+"-harmonic mean-h1"] = 0
+        try:
+          featureSet[str(n)+"-harmonic mean-h2"] = stats.hmean([float(tp2)/float(len(h2[n])), float(tp2)/float(len(ref[n]))])
+        except:
+          featureSet[str(n)+"-harmonic mean-h2"] = 0
+          
+        tp1_pos = sum([1.0 for t in pos_h1[n] if t in  pos_ref[n]])
+        tp2_pos = sum([1.0 for t in pos_h2[n] if t in  pos_ref[n]])      
+        try:
+          ngram_prec1 += float(tp1_pos)/float(len(pos_h1[n]))
+        except:
+          ngram_prec1 += 0.0
+        try:
+          ngram_prec2 += float(tp2_pos)/float(len(pos_h2[n]))
+        except:
+          ngram_prec2 += 0.0 
+        try:
+          featureSet[str(n)+"-precision-h1-pos"] = float(tp1_pos)/float(len(pos_h1[n]))
+        except:
+           featureSet[str(n)+"-precision-h1-pos"] = 0
+        try:
+          featureSet[str(n)+"-precision-h2-pos"] = float(tp2_pos)/float(len(pos_h2[n]))
+        except:
+          featureSet[str(n)+"-precision-h2-pos"] = 0
+        try:
+          featureSet[str(n)+"-recall-h1-pos"] = float(tp1_pos)/float(len(pos_ref[n]))
+        except:
+          featureSet[str(n)+"-recall-h1-pos"] = 0 
+        try:
+          featureSet[str(n)+"-recall-h2-pos"] = float(tp2_pos)/float(len(pos_ref[n]))
+        except:
+          featureSet[str(n)+"-recall-h2-pos"] = 0
+        try:
+          featureSet[str(n)+"-harmonic mean-h1-pos"] = stats.hmean([float(tp1_pos)/float(len(pos_h1[n])), float(tp1_pos)/float(len(pos_ref[n]))])
+        except:
+          featureSet[str(n)+"-harmonic mean-h1-pos"] = 0
+        try:
+          featureSet[str(n)+"-harmonic mean-h2-pos"] = stats.hmean([float(tp2_pos)/float(len(pos_h2[n])), float(tp2_pos)/float(len(pos_ref[n]))])
+        except:
+          featureSet[str(n)+"-harmonic mean-h2-pos"] = 0
+        precision1 = 0
+        recall1 = 0
+        total_p1 = 0
+        total_r1 = 0
+        precision2 = 0
+        recall2 = 0
+        total_p2 = 0
+        total_r2 = 0
+      featureSet["average-ngram-precision1"] = float(ngram_prec1)/len(h1)
+      featureSet["average-ngram-precision2"] = float(ngram_prec2)/len(h2)
+      featureSet["wordcount1"] = len(h1[0])
+      featureSet["wordcount2"] = len(h2[0])
+      featureSet["wordcount_ref"] = len(ref[0])
+
+
+      fx_words1 = [word for word in h1[0] if word in self.stopWordSet]
+      fx_words2 = [word for word in h2[0] if word in self.stopWordSet]
+      fx_wordsref = [word for word in ref[0] if word in self.stopWordSet]
+      featureSet["fxwordcount1"] = len(fx_words1)
+      featureSet["fxwordcount2"] = len(fx_words2)
+      featureSet["fxwordcountref"] = len(fx_wordsref)
+
+      non_words1 = [word for word in h1[0] if word.isalpha() != True]
+      non_words2 = [word for word in h2[0] if word.isalpha() != True]
+      non_wordsref = [word for word in ref[0] if word.isalpha() != True]
+      featureSet["nonwordcount1"] = len(non_words1)
+      featureSet["nonwordcount2"] = len(non_words2)
+      featureSet["nonwordcountref"] = len(non_wordsref)
+
+      content_words1 = [word for word in h1[0] if word not in self.stopWordSet]
+      content_words2 = [word for word in h2[0] if word not in self.stopWordSet]
+      content_wordsref = [word for word in ref[0] if word not in self.stopWordSet]
+      featureSet["contentwordcount1"] = len(content_words1)
+      featureSet["contentwordcount2"] = len(content_words2)
+      featureSet["contentwordcountref"] = len(content_wordsref)
+      
+      featureSet["meteor1"] = self.meteorScore(h1[0], ref[0])
+      featureSet["meteor2"] = self.meteorScore(h2[0], ref[0])
+      #print (featureSet)
+      return featureSet
+
+    def learn(self, h1, h2, ref, correct_class):
+      features = self.extract_features(h1, h2, ref)
+      self.allFeatures.append(features)
+      self.allCorrect.append(correct_class)
+
+    def fitModel(self):
+      X = self.vec.fit_transform(self.allFeatures).toarray()
+      y = np.array(self.allCorrect)
+      self.model.fit(X, y)
+
+    def predict(self, h1, h2, ref):
+      features = self.extract_features(h1, h2, ref)
+      f = self.vec.transform(features).toarray()
+      prediction = self.model.predict(f)
+      #prob = self.model.predict_proba(f)
+      print prediction[0]
+
+
 def word_matches(h, ref):
     return sum(1 for w in h if w in ref)
     # or sum(w in ref for w in f) # cast bool -> int
@@ -11,28 +197,59 @@ def word_matches(h, ref):
 def main():
     parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
     # PEP8: use ' and not " for strings
-    parser.add_argument('-i', '--input', default='data/train-test.hyp1-hyp2-ref',
+    parser.add_argument('-i', '--input', default='data/train',
             help='input file (default data/train-test.hyp1-hyp2-ref)')
     parser.add_argument('-n', '--num_sentences', default=None, type=int,
             help='Number of hypothesis pairs to evaluate')
     # note that if x == [1, 2, 3], then x[:None] == x[:] == x (copy); no need for sys.maxint
     opts = parser.parse_args()
+
+    #path_to_jar = 'stanford-parser-full-2014-08-27/stanford-parser.jar'
+    #path_to_models_jar = 'stanford-parser-full-2014-08-27/stanford-parser-3.4.1-models.jar'
+    #dependency_parser = StanfordDependencyParser(path_to_jar=path_to_jar, path_to_models_jar=path_to_models_jar)
  
     # we create a generator and avoid loading all sentences into a list
-    def sentences():
-        with open(opts.input) as f:
+    def sentences(afile):
+        with open(afile) as f:
             for pair in f:
                 yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
+
  
+    def get_ngrams(text, n ):
+      n_grams = ngrams(word_tokenize(text), n)
+      return [ ' '.join(grams).lower() for grams in n_grams]
+    model = LogRegModel()
+    #print "getting data..."
     # note: the -n option does not work in the original code
-    for h1, h2, ref in islice(sentences(), opts.num_sentences):
-        rset = set(ref)
-        h1_match = word_matches(h1, rset)
-        h2_match = word_matches(h2, rset)
-        print(-1 if h1_match > h2_match else # \begin{cases}
-                (0 if h1_match == h2_match
-                    else 1)) # \end{cases}
- 
+    for corr, h1, h2, ref in islice(sentences(opts.input), opts.num_sentences):
+        #rset = set(ref)
+        corr = "".join(corr)
+        h1sent = unicode(" ".join(h1),'utf-8')
+        h2sent = unicode(" ".join(h2),'utf-8')
+        refsent = unicode(" ".join(ref),'utf-8')
+        
+        allgrams1 = [get_ngrams(h1sent, 1)] + [get_ngrams(h1sent, 2)] + [get_ngrams(h1sent, 3)] + [get_ngrams(h1sent, 4)]
+        allgrams2 = [get_ngrams(h2sent, 1)] + [get_ngrams(h2sent, 2)] + [get_ngrams(h2sent, 3)] + [get_ngrams(h2sent, 4)]
+        allgrams_ref = [get_ngrams(refsent, 1)] + [get_ngrams(refsent, 2)] + [get_ngrams(refsent, 3)] + [get_ngrams(refsent, 4)]
+        model.learn(allgrams1, allgrams2, allgrams_ref, corr)
+        #h1_match = word_matches(h1, rset)
+        #h2_match = word_matches(h2, rset)
+        #h1_match = dependency_matches(h1, ref, dependency_parser)
+        #h2_match = dependency_matches(h2, ref, dependency_parser)
+        #print(-1 if h1_match > h2_match else # \begin{cases}
+                #(0 if h1_match == h2_match
+                 #   else 1)) # \end{cases}
+
+#print "fitting model..."
+    model.fitModel()
+    for h1, h2, ref in islice(sentences("data/dev_sent"), opts.num_sentences):
+      h1sent = unicode(" ".join(h1),'utf-8')
+      h2sent = unicode(" ".join(h2),'utf-8')
+      refsent = unicode(" ".join(ref),'utf-8')  
+      allgrams1 = [get_ngrams(h1sent, 1)] + [get_ngrams(h1sent, 2)] + [get_ngrams(h1sent, 3)] + [get_ngrams(h1sent, 4)]
+      allgrams2 = [get_ngrams(h2sent, 1)] + [get_ngrams(h2sent, 2)] + [get_ngrams(h2sent, 3)] + [get_ngrams(h2sent, 4)]
+      allgrams_ref = [get_ngrams(refsent, 1)] + [get_ngrams(refsent, 2)] + [get_ngrams(refsent, 3)] + [get_ngrams(refsent, 4)]
+      model.predict(allgrams1, allgrams2, allgrams_ref)
 # convention to allow import of this file as a module
 if __name__ == '__main__':
     main()

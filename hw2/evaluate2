@@ -16,23 +16,39 @@ def word_matches(h, ref):
     
 #  
 def meteorScore(hyp, ref):
-	hyp = " ".join(hyp)
-	hyp = hyp.decode('utf-8')
-	hypToken = [w.lower().strip() for w in word_tokenize(hyp) if w.isalnum() ] # any (c.isalnum() for c in w)
-	ref = " ".join(ref)
-	ref = ref.decode('utf-8')
-	refToken = [w.lower().strip() for w in word_tokenize(ref) if w.isalnum() ]
-	m = sum([1.0 for w in hypToken if w in refToken])
+    hyp = " ".join(hyp)
+    hyp = hyp.decode('utf-8')
+    hypToken = [w.lower().strip() for w in word_tokenize(hyp) if w.isalnum() ] # any (c.isalnum() for c in w)
+    ref = " ".join(ref)
+    ref = ref.decode('utf-8')
+    refToken = [w.lower().strip() for w in word_tokenize(ref) if w.isalnum() ]
+    m = sum([1.0 for w in hypToken if w in refToken])
 
-	try:
-		precision = m / len(hypToken)
-		recall = m / len(refToken)
-		fmean = (10.0*precision*recall) / (7.0*recall + 3.0 * precision)
-		#fmean = stats.hmean([precision, recall])
-		return fmean
-	except:
-		return 0;
+    try:
+        precision = m / len(hypToken)
+        recall = m / len(refToken)
+        fmean = (10.0*precision*recall) / (7.0*recall + 3.0 * precision)
+        #fmean = stats.hmean([precision, recall])
+        return fmean
+    except:
+        return 0
+    
+def bleuScore(hyp, ref):
+    hyp = " ".join(hyp)
+    hyp = hyp.decode('utf-8')
+    hypToken = [w.lower().strip() for w in word_tokenize(hyp) if w.isalnum() ] # any (c.isalnum() for c in w)
+    bigrams = [b for b in zip(hypToken[:-1], hypToken[1:])]
+    print(bigrams)
+    ref = " ".join(ref)
+    ref = ref.decode('utf-8')
+    refToken = [w.lower().strip() for w in word_tokenize(ref) if w.isalnum() ]
+    m = sum([1.0 for w in hypToken if w in refToken])
 
+    try:
+        precision = m / len(hypToken)
+        
+    except:
+        return 0
 def main():
     parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
     # PEP8: use ' and not " for strings
@@ -43,11 +59,10 @@ def main():
     # note that if x == [1, 2, 3], then x[:None] == x[:] == x (copy); no need for sys.maxint
     opts = parser.parse_args()
  
-    dependency_parser = stanford.StanfordDependencyParser(path_to_jar = "/Users/elliotschumacher/Dropbox/workspace/11-731/sp2016.11-731/hw2/stanford-parser.jar",  path_to_models_jar="/Users/elliotschumacher/Dropbox/workspace/11-731/sp2016.11-731/hw2/stanford-parser-3.4.1-models.jar")
     def sentences():
-      with open(opts.input) as f:
-          for pair in f:
-              yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
+        with open(opts.input) as f:
+            for pair in f:
+                yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
       
     
     for h1, h2, ref in islice(sentences(), opts.num_sentences):
@@ -55,7 +70,7 @@ def main():
         #h2_match = word_matches(h2, rset)
         meteor1 = meteorScore(h1, ref)
         meteor2 = meteorScore(h2, ref)
-
+        bleu1 = bleuScore(h1, ref)
         print(-1 if meteor1 > meteor2 else # \begin{cases}
             (0 if meteor1 == meteor2
               else 1)) # \end{cases}
