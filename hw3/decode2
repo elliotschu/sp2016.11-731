@@ -5,6 +5,12 @@ import models
 import heapq
 from collections import namedtuple
 
+"""
+This version of the decoder allows for each segment to be split into two portions, and reordered in any way.
+This produced the baseline.
+"""
+
+
 parser = argparse.ArgumentParser(description='Simple phrase based decoder.')
 parser.add_argument('-i', '--input', dest='input', default='data/input', help='File containing sentences to translate (default=data/input)')
 parser.add_argument('-t', '--translation-model', dest='tm', default='data/tm', help='File containing translation model (default=data/tm)')
