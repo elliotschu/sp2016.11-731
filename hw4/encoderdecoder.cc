@@ -16,9 +16,12 @@
 #include <fstream>
 #include <sstream>
 #include <deque>
+#include <ctime>
+#include <cstdio>
+#include <string>
 
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
 
 using namespace std;
 using namespace cnn;
@@ -131,7 +134,9 @@ struct EncoderDecoder {
     }
 };
 
-void Translate(vector<vector<int>>&  test_sents, EncoderDecoder<LSTMBuilder>& tr){
+vector<string> Translate(vector<vector<int>>&  test_sents, EncoderDecoder<LSTMBuilder>& tr){
+	vector<string> trans_sents;
+	cerr << "TEST SIZE " << test_sents.size() << endl;
   for(int i = 0; i < test_sents.size(); ++i) {
   	//for (int j = 0; j < test_sents[i].size(); ++j) {
   	//	cerr << sourceD.Convert(test_sents[i][j]) << " ";
@@ -153,11 +158,12 @@ void Translate(vector<vector<int>>&  test_sents, EncoderDecoder<LSTMBuilder>& tr
   	tr.outbuilder.start_new_sequence(init);
 	tr.outbuilder.add_input(lookup(cg, tr.p_c, kSOS2));
   	Expression h_t = tr.outbuilder.back();
-  	cerr << "<s> ";
-  	int translation = targetD.Convert("x");
+  	//cerr << "<s> ";
+  	int translation= -1;
   	int count = 0;
+	string trans_sent;
   	while(translation != kEOS2 and count < 50){
-	  	cerr << translation << " ";
+	  	//cerr << translation << " ";
 	    	count++;
 	  	Expression u_t = affine_transform({outbias, enc2out, h_t});
 	  	Expression probs_embedding = log_softmax(u_t);
@@ -169,19 +175,49 @@ void Translate(vector<vector<int>>&  test_sents, EncoderDecoder<LSTMBuilder>& tr
 	  	}
 	  	sort(prob_idx.begin(), prob_idx.end(), comparator);
 	  	translation = prob_idx[0].second;
-	  	cerr << targetD.Convert(translation) << " " << prob_idx[0].first << " " << prob_idx[0].second << "\n";
+	  	//cerr << targetD.Convert(translation) << " " << prob_idx[0].first << " " << prob_idx[0].second << "\n";
+	  	trans_sent.append(targetD.Convert(translation));
+	  	trans_sent.append(" ");
 	  	Expression x_t = lookup(cg, tr.p_c, translation);
 	  	h_t = tr.outbuilder.add_input(x_t);
  	 }
+	//cerr << "TRANS SENT " << trans_sent << endl;
+	trans_sents.push_back(trans_sent);
   }
   cerr << "\n"; 
+	return trans_sents; // vector of strings
 }
+
+void this_save_cnn_model(std::string filename, Model* model) {
+    std::ofstream out(filename);
+    boost::archive::text_oarchive oa(out);
+    oa << (*model);
+};
+
+void this_load_cnn_model(std::string filename, Model* model) {
+    std::ifstream in(filename);
+    boost::archive::text_iarchive ia(in);
+    ia >> (*model);
+};
+
+void this_save_cnn_dict(std::string filename,cnn::Dict* dict) {
+    std::ofstream out(filename);
+    boost::archive::text_oarchive oa(out);
+    oa << (*dict);
+};
+
+void this_load_cnn_dict(std::string filename, cnn::Dict* dict) {
+    std::ifstream in(filename);
+    boost::archive::text_iarchive ia(in);
+    ia >> (*dict);
+};
+
 
 int main(int argc, char** argv) {
 	cnn::Initialize(argc, argv);
 	bool isTrain = true;
 	if (argc == 8){
-	  if (!strcmp(argv[1], "-t")) {
+	  if (!strcmp(argv[7], "-t")) {
 	    isTrain = false;
 	  }
 	}
@@ -189,6 +225,7 @@ int main(int argc, char** argv) {
 	  cerr << "Usage: " << argv[0] << " train.source train.target dev.source dev.target [test.source] [model.params] [-t]\n";
 	  return 1;
 	}
+
 	if (isTrain) {
 		Model model;
 		kSOS = sourceD.Convert("<s>");
@@ -197,6 +234,7 @@ int main(int argc, char** argv) {
 		kEOS2 = targetD.Convert("</s>");
 		vector<vector<int>> train_source, train_target;
 		vector<vector<int>> dev_source, dev_target;
+		vector<vector<int>> test_source;
 		string line;
 		{
 		  ifstream in(argv[1]);
@@ -221,12 +259,15 @@ int main(int argc, char** argv) {
 		}
 		targetD.Freeze();
 		VOCAB_SIZE = targetD.size() + sourceD.size();
-		ofstream out("targetDict");
-		boost::archive::binary_oarchive oa(out);
-		oa << targetD;
-		ofstream out2("sourceDict");
-		boost::archive::binary_oarchive oa2(out2);
-		oa2 << sourceD;
+
+		this_save_cnn_dict("targetdict", &targetD);
+		this_save_cnn_dict("sourcedict", &sourceD);
+		/*ofstream outTargetDict("targetDict");
+		boost::archive::text_oarchive oaTargetDict(outTargetDict);
+		oaTargetDict << targetD;
+		ofstream outSourceDict("sourceDict");
+		boost::archive::text_oarchive oaSourceDict(outSourceDict);
+		oaSourceDict << sourceD;*/
 		{
 		  ifstream in(argv[3]);
 		  assert(in);
@@ -247,11 +288,21 @@ int main(int argc, char** argv) {
 		    dev_target.push_back(x);
 		  }
 		}	
+		{
+		  ifstream in(argv[5]);
+		  assert(in);
+		  vector<int> x;
+		  string line;
+		  while(getline(in, line)) {
+		    x = ReadSentence(line, &sourceD);
+		    test_source.push_back(x);
+		  }
+		}	
 		Trainer* sgd = new SimpleSGDTrainer(&model);
 		sgd->eta_decay = 0.08;
 		EncoderDecoder<LSTMBuilder> lm(model);
 		double best = 9e+99;
-		unsigned report_every_i = 100;
+		unsigned report_every_i = 100 ;
 	    unsigned dev_every_i_reports = 25;
 	    unsigned si = train_source.size();
 	    vector<unsigned> order(train_source.size());
@@ -300,16 +351,42 @@ int main(int argc, char** argv) {
 			         cerr << endl;
 			         cerr << "Current dev performance exceeds previous best, saving model" << endl;
 			         best = dloss;
-			         ofstream out("EDmodel");
-			         boost::archive::binary_oarchive oa(out);
-			         oa << model;
-			       }
+			         save_cnn_model("bestmodel", &model);
+
+					// Run through test set and print translation
+					ofstream log;
+					std::time_t now = std::time(NULL);
+					std::tm * ptm = std::localtime(&now);
+					char fname[32];
+					std::strftime(fname, 32, "testout_%Y-%m-%dT%H-%M-%S.txt", ptm);  
+   					 log.open(fname);
+   					 if (log.fail())
+   					     perror(fname);
+
+					// Run through test set, printing
+					vector<string> trans_sents = Translate(test_source, lm);
+					cerr << trans_sents.size() << "\n";
+					//ostringstream s;
+					//copy(trans_sents.begin(), trans_sents.end(), ostream_iterator<string>(s, " "));
+					copy(trans_sents.begin(), trans_sents.end(), ostream_iterator<string>(log, "\n"));
+
+					//log << s.str() << "\n";
+					log.close();
+					cerr << "Printed test output to " << fname << endl;
+			    //   for (unsigned di = 0; di < test_source.size(); ++di){
+				//       log << Translate(test_source[di], lm) << "\n";
+   				//	 log.close();
+			       //}
+
 			       for (unsigned di = 0; di < 10; ++di){
 				       vector<vector<int>> test;
 				       test.push_back(dev_source[di]);
-				       Translate(test, lm);
+				       vector<string> dev_trans = Translate(test, lm);
+						copy(dev_trans.begin(), dev_trans.end(), ostream_iterator<string>(cerr));
+						cerr << "\n";
+			
 				       for (unsigned ti = 0; ti < dev_target[di].size(); ++ti){
-					cerr << targetD.Convert(dev_target[di][ti]) << " ";
+							cerr << targetD.Convert(dev_target[di][ti]) << " ";
 						
 					}
 					cerr << "\n=============\n";
@@ -319,32 +396,37 @@ int main(int argc, char** argv) {
 			     }
 			 }
 		}
+}
 	else {
-	 cerr << "Test 1";
-	 ifstream in3("targetDict");
-	 assert(in3);
-	 boost::archive::binary_iarchive ia3(in3);
-	 ia3 >> targetD;
+	 //cerr << "Test 1";
+	 /*ifstream inTargetDict("targetDict");
+	 assert(inTargetDict);
+	 boost::archive::text_iarchive iaTargetDict(inTargetDict);
+	 iaTargetDict >> targetD;
 
-	 cerr << "Test 2";
-	 Model model;
-	 ifstream in("sourceDict");
-	 assert(in);
-	 boost::archive::binary_iarchive ia(in);
-	 ia >> sourceD;
+	 //cerr << "Test 2";
+	 
+	 ifstream inSourceDict("sourceDict");
+	 assert(inSourceDict);
+	 boost::archive::text_iarchive iaSourceDict(inSourceDict);
+	 iaSourceDict >> sourceD;
 
 
 
 	 sourceD.Freeze();
 	 targetD.Freeze();
-	 VOCAB_SIZE = targetD.size();
-
+	 VOCAB_SIZE = targetD.size();*/
+         Model model;
 	 vector<vector<int>> test_source;
 
-	 ifstream in2("EDmodel");
-	 assert(in2);
-	 boost::archive::binary_iarchive ia2(in2);
-	 ia2 >> model;
+	 /*ifstream inModel("EDmodel");
+	 assert(inModel);
+	 boost::archive::text_iarchive iaModel(inModel);
+	 iaModel >> model;
+*/
+	this_load_cnn_dict("targetdict", &targetD);
+	this_load_cnn_dict("sourcedict", &sourceD);
+	VOCAB_SIZE = targetD.size() + sourceD.size();
 	 {
 	   ifstream in(argv[5]);
 	   assert(in);
@@ -356,6 +438,7 @@ int main(int argc, char** argv) {
 	   }
 	 }
 	 EncoderDecoder<LSTMBuilder> tr(model);
+	 this_load_cnn_model("bestmodel", &model);
 	 Translate(test_source, tr);
 	 }
 }
