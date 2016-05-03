@@ -40,8 +40,8 @@ bool comparator ( const prob_in_pair& l, const prob_in_pair& r)
 
 unsigned IN_LAYERS = 1;
 unsigned OUT_LAYERS = 2;
-unsigned INPUT_DIM = 20;
-unsigned HIDDEN_DIM = 80;
+unsigned INPUT_DIM = 64;
+unsigned HIDDEN_DIM = 256;
 unsigned VOCAB_SIZE = 0;
 
 template <class Builder>
@@ -439,7 +439,26 @@ int main(int argc, char** argv) {
 	 }
 	 EncoderDecoder<LSTMBuilder> tr(model);
 	 this_load_cnn_model("bestmodel", &model);
-	 Translate(test_source, tr);
+	 //Translate(test_source, tr);
+	ofstream log;
+	std::time_t now = std::time(NULL);
+	std::tm * ptm = std::localtime(&now);
+	char fname[32];
+	std::strftime(fname, 32, "testout_%Y-%m-%dT%H-%M-%S.txt", ptm);  
+	 log.open(fname);
+	 if (log.fail())
+	     perror(fname);
+
+	// Run through test set, printing
+	vector<string> trans_sents = Translate(test_source, tr);
+	cerr << trans_sents.size() << "\n";
+	//ostringstream s;
+	//copy(trans_sents.begin(), trans_sents.end(), ostream_iterator<string>(s, " "));
+	copy(trans_sents.begin(), trans_sents.end(), ostream_iterator<string>(log, "\n"));
+
+	//log << s.str() << "\n";
+	log.close();
+	cerr << "Printed test output to " << fname << endl;
 	 }
 }
 //train on the train+dev data duh
